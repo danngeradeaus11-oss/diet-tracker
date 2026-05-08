@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ダイエット管理</title>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@300;400;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f7f4ef;
+    --surface: #ffffff;
+    --accent: #2d6a4f;
+    --accent2: #74c69d;
+    --accent3: #e76f51;
+    --text: #1a1a2e;
+    --muted: #8a8a9a;
+    --border: #ddd8ce;
+    --cell-h: 44px;
+    --row-label: 160px;
+    --shadow: 0 2px 16px rgba(0,0,0,0.07);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  header {
+    background: var(--accent);
+    color: #fff;
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 12px rgba(45,106,79,0.3);
+  }
+
+  header h1 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+
+  .header-meta {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.78rem;
+    opacity: 0.75;
+    letter-spacing: 0.04em;
+  }
+
+  .main-wrap {
+    display: flex;
+    gap: 0;
+    padding: 24px 20px;
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+
+  /* ===== LEFT PANEL: Graph ===== */
+  .left-panel {
+    width: 280px;
+    flex-shrink: 0;
+    margin-right: 20px;
+  }
+
+  .card {
+    background: var(--surface);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 20px;
+    margin-bottom: 18px;
+  }
+
+  .card-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .card-title::before {
+    content: '';
+    width: 4px;
+    height: 14px;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+
+  canvas#weightChart {
+    width: 100% !important;
+    height: 200px !important;
+  }
+
+  .weight-input-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+    align-items: center;
+  }
+
+  .weight-input-row input {
+    flex: 1;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-family: 'DM Mono', monospace;
+    font-size: 1rem;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+    background: var(--bg);
+  }
+
+  .weight-input-row input:focus {
+    border-color: var(--accent);
+  }
+
+  .weight-input-row button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.2s;
+    white-space: nowrap;
+  }
+
+  .weight-input-row button:hover { background: #1b4d39; }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .stat-box {
+    background: var(--bg);
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+  }
+
+  .stat-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 1.4rem;
+    font-weight: 500;
+    color: var(--accent);
+  }
+
+  .stat-label {
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  /* ===== TASK LIST MANAGER ===== */
+  .task-manager {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .task-item-edit {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 6px 8px;
+  }
+
+  .task-item-edit input[type="text"] {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    font-size: 0.85rem;
+    color: var(--text);
+    outline: none;
+  }
+
+  .task-type-select {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.72rem;
+    padding: 3px 5px;
+    color: var(--muted);
+    background: var(--surface);
+    outline: none;
+    cursor: pointer;
+  }
+
+  .btn-del {
+    background: none;
+    border: none;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0 2px;
+    transition: color 0.15s;
+  }
+
+  .btn-del:hover { color: var(--accent3); }
+
+  .btn-add {
+    background: none;
+    border: 1.5px dashed var(--border);
+    border-radius: 8px;
+    padding: 8px;
+    color: var(--muted);
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    width: 100%;
+  }
+
+  .btn-add:hover {
+    border-color: var(--accent2);
+    color: var(--accent);
+  }
+
+  /* ===== RIGHT PANEL: Tracker Table ===== */
+  .right-panel {
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .month-nav {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .month-nav button {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    width: 34px;
+    height: 34px;
+    font-size: 1rem;
+    cursor: pointer;
+    color: var(--text);
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .month-nav button:hover {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+
+  .month-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text);
+    letter-spacing: 0.05em;
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    background: var(--surface);
+  }
+
+  table {
+    border-collapse: collapse;
+    min-width: 100%;
+  }
+
+  thead th {
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  th, td {
+    border: 1px solid var(--border);
+  }
+
+  /* Row label column */
+  .col-label {
+    width: var(--row-label);
+    min-width: var(--row-label);
+    position: sticky;
+    left: 0;
+    z-index: 5;
+    background: var(--surface);
+  }
+
+  thead .col-label {
+    z-index: 15;
+  }
+
+  /* Date header cells */
+  .date-head {
+    min-width: 52px;
+    width: 52px;
+    text-align: center;
+    padding: 6px 2px;
+  }
+
+  .date-day {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .date-dow {
+    font-size: 0.65rem;
+    color: var(--muted);
+  }
+
+  .date-dow.sun { color: #e57373; }
+  .date-dow.sat { color: #5b8dd9; }
+
+  .today-col .date-day { color: var(--accent); }
+  .today-col { background: #f0faf5 !important; }
+
+  /* Label cell */
+  td.col-label {
+    padding: 0 10px 0 14px;
+    height: var(--cell-h);
+  }
+
+  .task-label {
+    font-size: 0.88rem;
+    font-weight: 400;
+    white-space: nowrap;
+  }
+
+  .task-type-badge {
+    font-size: 0.62rem;
+    color: var(--muted);
+    background: var(--bg);
+    border-radius: 4px;
+    padding: 1px 4px;
+    margin-left: 4px;
+  }
+
+  /* Weight row */
+  tr.row-weight td.col-label {
+    font-size: 0.82rem;
+    color: var(--muted);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+  }
+
+  /* Data cells */
+  td.data-cell {
+    text-align: center;
+    padding: 0;
+    height: var(--cell-h);
+    vertical-align: middle;
+    transition: background 0.1s;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  td.data-cell:hover { background: #f0faf5; }
+  td.data-cell.today-col { background: #f0faf5; }
+  td.data-cell.today-col:hover { background: #e2f5ec; }
+
+  /* CHECK cell */
+  .cell-check {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+  }
+
+  .check-circle {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    background: transparent;
+  }
+
+  .check-circle.done {
+    border-color: var(--accent);
+    background: var(--accent2);
+  }
+
+  .check-circle.done::after {
+    content: '✓';
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  /* Triangle (partial) */
+  .check-circle.partial {
+    border-color: #f4a261;
+    background: #fef3ec;
+  }
+
+  .check-circle.partial::after {
+    content: '△';
+    color: #f4a261;
+    font-size: 0.75rem;
+  }
+
+  /* NUMBER / TEXT cells */
+  .cell-num {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+  }
+
+  .cell-num input {
+    width: 42px;
+    border: none;
+    border-radius: 6px;
+    text-align: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    background: transparent;
+    outline: none;
+    color: var(--accent);
+    font-weight: 500;
+    padding: 2px;
+  }
+
+  .cell-num input:focus {
+    background: #e8f5ee;
+  }
+
+  .cell-num input::placeholder { color: var(--border); }
+
+  /* Weight cell */
+  .cell-weight input {
+    width: 52px;
+    border: none;
+    border-radius: 6px;
+    text-align: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    background: transparent;
+    outline: none;
+    color: #555;
+    padding: 2px;
+  }
+
+  .cell-weight input:focus { background: #f9f3e8; }
+  .cell-weight input::placeholder { color: var(--border); }
+
+  /* Row alternating */
+  tbody tr:nth-child(even) td.col-label,
+  tbody tr:nth-child(even) { background: #fafaf8; }
+
+  tbody tr:nth-child(even) td.data-cell.today-col,
+  tbody tr:nth-child(odd) td.data-cell.today-col { background: #f0faf5; }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .legend-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+  }
+
+  .legend-dot.done { background: var(--accent2); border-color: var(--accent); }
+  .legend-dot.partial { background: #fef3ec; border-color: #f4a261; }
+
+  /* Scrollbar */
+  .table-wrap::-webkit-scrollbar { height: 6px; }
+  .table-wrap::-webkit-scrollbar-track { background: var(--bg); }
+  .table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ===== QUICK ENTRY MODAL ===== */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 200;
+    align-items: flex-end;
+    justify-content: center;
+    backdrop-filter: blur(3px);
+  }
+
+  .modal-overlay.open {
+    display: flex;
+    animation: fadeIn 0.18s ease;
+  }
+
+  @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+
+  .modal-sheet {
+    background: var(--surface);
+    border-radius: 22px 22px 0 0;
+    padding: 28px 24px 40px;
+    width: 100%;
+    max-width: 480px;
+    animation: slideUp 0.22s cubic-bezier(0.34,1.3,0.64,1);
+    box-shadow: 0 -8px 40px rgba(0,0,0,0.18);
+  }
+
+  @keyframes slideUp {
+    from { transform: translateY(100%) }
+    to   { transform: translateY(0) }
+  }
+
+  .modal-handle {
+    width: 40px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 0 auto 20px;
+  }
+
+  .modal-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+
+  .modal-date {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-bottom: 20px;
+  }
+
+  /* Big weight input */
+  .big-weight-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 24px;
+    background: var(--bg);
+    border-radius: 14px;
+    padding: 18px;
+  }
+
+  #bigWeightInput {
+    font-family: 'DM Mono', monospace;
+    font-size: 3rem;
+    font-weight: 500;
+    width: 140px;
+    text-align: center;
+    border: none;
+    background: transparent;
+    color: var(--accent);
+    outline: none;
+    -moz-appearance: textfield;
+  }
+
+  #bigWeightInput::-webkit-outer-spin-button,
+  #bigWeightInput::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+  .big-weight-unit {
+    font-size: 1.4rem;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+
+  .weight-adj-btns {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .weight-adj-btns button {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    font-size: 1.1rem;
+    cursor: pointer;
+    color: var(--text);
+    transition: all 0.12s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .weight-adj-btns button:hover {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+/* Save button */
+  .btn-save-modal {
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    padding: 16px;
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.04em;
+  }
+
+  .btn-save-modal:hover { background: #1b4d39; transform: translateY(-1px); }
+  .btn-save-modal:active { transform: scale(0.98); }
+
+  /* Success animation */
+  .toast {
+    position: fixed;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--accent);
+    color: #fff;
+    padding: 12px 24px;
+    border-radius: 30px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s;
+    z-index: 300;
+    white-space: nowrap;
+    box-shadow: 0 4px 20px rgba(45,106,79,0.4);
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Open modal button (FAB) */
+  .fab {
+    position: fixed;
+    bottom: 28px;
+    right: 24px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    font-size: 1.6rem;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(45,106,79,0.45);
+    z-index: 150;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+
+  .fab:hover { transform: scale(1.08); background: #1b4d39; }
+  .fab:active { transform: scale(0.95); }
+
+  @media (max-width: 900px) {
+    .main-wrap { flex-direction: column; }
+    .left-panel { width: 100%; margin-right: 0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🌿 ダイエット管理</h1>
+  <span class="header-meta" id="todayLabel"></span>
+</header>
+
+<div class="main-wrap">
+
+  <!-- LEFT PANEL -->
+  <div class="left-panel">
+
+    <!-- Weight Graph -->
+    <div class="card">
+      <div class="card-title">体重グラフ</div>
+      <canvas id="weightChart"></canvas>
+      <div class="weight-input-row">
+        <input type="number" id="todayWeight" placeholder="kg" step="0.1" min="30" max="200">
+        <button onclick="saveTodayWeight()">今日を記録</button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="card">
+      <div class="card-title">統計</div>
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-val" id="statCurrent">—</div>
+          <div class="stat-label">現在の体重</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="statChange">—</div>
+          <div class="stat-label">今月の変化</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="statMin">—</div>
+          <div class="stat-label">最小値</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="statMax">—</div>
+          <div class="stat-label">最大値</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Task Manager -->
+    <div class="card">
+      <div class="card-title">やることリスト編集</div>
+      <div class="task-manager" id="taskManager"></div>
+      <button class="btn-add" onclick="addTask()">＋ 項目を追加</button>
+    </div>
+
+    <!-- Legend -->
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-dot done"></div> 完了 (○)
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot partial"></div> 部分 (△)
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot"></div> 未実施
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+    <div class="month-nav">
+      <button onclick="changeMonth(-1)">‹</button>
+      <span class="month-label" id="monthLabel"></span>
+      <button onclick="changeMonth(1)">›</button>
+    </div>
+
+    <div class="table-wrap">
+      <table id="trackerTable">
+        <thead id="tableHead"></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- Quick Entry Modal -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModalOnBg(event)">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">⚖️ 今日の体重を記録</div>
+    <div class="modal-date" id="modalDate"></div>
+
+    <div class="big-weight-wrap">
+      <div class="weight-adj-btns">
+        <button onclick="adjustWeight(0.1)">＋</button>
+        <button onclick="adjustWeight(-0.1)">－</button>
+      </div>
+      <input type="number" id="bigWeightInput" step="0.1" min="30" max="200"
+        placeholder="--.-" oninput="onWeightInput()">
+      <span class="big-weight-unit">kg</span>
+    </div>
+
+    <button class="btn-save-modal" onclick="saveModalWeight()">記録する</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- FAB -->
+<button class="fab" onclick="openModal()" title="体重を記録">⚖</button>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+// =============================================
+//  STATE
+// =============================================
+const STORAGE_KEY = 'dietTracker_v1';
+
+const DEFAULT_TASKS = [
+  { id: 't1', name: 'くすり',    type: 'check' },
+  { id: 't2', name: '足まわし',  type: 'check' },
+  { id: 't3', name: '肩まわし',  type: 'check' },
+  { id: 't4', name: '人と豆乳',  type: 'check' },
+  { id: 't5', name: 'スクワット', type: 'number', unit: '回' },
+  { id: 't6', name: '首コリ',    type: 'check' },
+  { id: 't7', name: 'すた腹筋',  type: 'check' },
+  { id: 't8', name: 'オガトレ',  type: 'check' },
+  { id: 't9', name: '踏台昇降',  type: 'number', unit: '分' },
+];
+
+let state = {
+  tasks: [...DEFAULT_TASKS],
+  records: {},   // { "YYYY-MM-DD": { taskId: value, weight: number } }
+  viewYear: 0,
+  viewMonth: 0,
+};
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      state.tasks = parsed.tasks || DEFAULT_TASKS;
+      state.records = parsed.records || {};
+    }
+  } catch(e) {}
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    tasks: state.tasks,
+    records: state.records,
+  }));
+}
+
+// =============================================
+//  HELPERS
+// =============================================
+function dateKey(y, m, d) {
+  return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+
+function todayKey() {
+  const t = new Date();
+  return dateKey(t.getFullYear(), t.getMonth(), t.getDate());
+}
+
+function daysInMonth(y, m) {
+  return new Date(y, m+1, 0).getDate();
+}
+
+function getDow(y, m, d) {
+  return new Date(y, m, d).getDay();
+}
+
+const DOW_JP = ['日','月','火','水','木','金','土'];
+
+// =============================================
+//  TASK MANAGER (left panel)
+// =============================================
+function renderTaskManager() {
+  const container = document.getElementById('taskManager');
+  container.innerHTML = '';
+  state.tasks.forEach((task, i) => {
+    const row = document.createElement('div');
+    row.className = 'task-item-edit';
+    row.innerHTML = `
+      <input type="text" value="${task.name}" 
+        onchange="updateTaskName(${i}, this.value)" 
+        placeholder="タスク名">
+      <select class="task-type-select" onchange="updateTaskType(${i}, this.value)">
+        <option value="check" ${task.type==='check'?'selected':''}>○チェック</option>
+        <option value="number" ${task.type==='number'?'selected':''}>数値</option>
+      </select>
+      <button class="btn-del" onclick="deleteTask(${i})" title="削除">✕</button>
+    `;
+    container.appendChild(row);
+  });
+}
+
+function updateTaskName(i, val) {
+  state.tasks[i].name = val;
+  saveState();
+  renderTable();
+}
+
+function updateTaskType(i, val) {
+  state.tasks[i].type = val;
+  saveState();
+  renderTable();
+}
+
+function deleteTask(i) {
+  state.tasks.splice(i, 1);
+  saveState();
+  renderTaskManager();
+  renderTable();
+}
+
+function addTask() {
+  const id = 'task_' + Date.now();
+  state.tasks.push({ id, name: '新しいタスク', type: 'check' });
+  saveState();
+  renderTaskManager();
+  renderTable();
+}
+
+// =============================================
+//  TABLE
+// =============================================
+function renderTable() {
+  const y = state.viewYear;
+  const m = state.viewMonth;
+  const days = daysInMonth(y, m);
+  const tk = todayKey();
+
+  const head = document.getElementById('tableHead');
+  const body = document.getElementById('tableBody');
+
+  // HEAD
+  let headHtml = '<tr><th class="col-label" style="padding:8px 10px;font-size:0.8rem;color:var(--muted);">タスク</th>';
+  for (let d = 1; d <= days; d++) {
+    const dow = getDow(y, m, d);
+    const key = dateKey(y, m, d);
+    const isToday = key === tk;
+    const dowClass = dow===0?'sun':dow===6?'sat':'';
+    headHtml += `<th class="date-head ${isToday?'today-col':''}">
+      <div class="date-day">${d}</div>
+      <div class="date-dow ${dowClass}">${DOW_JP[dow]}</div>
+    </th>`;
+  }
+  headHtml += '</tr>';
+  head.innerHTML = headHtml;
+
+  // BODY
+  let bodyHtml = '';
+
+  // Weight row
+  bodyHtml += `<tr class="row-weight">
+    <td class="col-label"><span class="task-label">⚖ 体重</span></td>`;
+  for (let d = 1; d <= days; d++) {
+    const key = dateKey(y, m, d);
+    const isToday = key === tk;
+    const val = (state.records[key] && state.records[key].weight != null) ? state.records[key].weight : '';
+    bodyHtml += `<td class="data-cell ${isToday?'today-col':''}">
+      <div class="cell-num cell-weight">
+        <input type="number" step="0.1" min="30" max="200"
+          placeholder="kg"
+          value="${val}"
+          data-key="${key}" data-field="weight"
+          onchange="setCellValue('${key}', 'weight', this.value)"
+          onclick="event.stopPropagation()">
+      </div>
+    </td>`;
+  }
+  bodyHtml += '</tr>';
+
+  // Task rows
+  state.tasks.forEach(task => {
+    bodyHtml += `<tr>
+      <td class="col-label">
+        <span class="task-label">${task.name}</span>
+        <span class="task-type-badge">${task.type==='check'?'○':'数値'}</span>
+      </td>`;
+
+    for (let d = 1; d <= days; d++) {
+      const key = dateKey(y, m, d);
+      const isToday = key === tk;
+      const rec = state.records[key] || {};
+      const val = rec[task.id];
+
+      if (task.type === 'check') {
+        let state2 = '';
+        if (val === 1) state2 = 'done';
+        else if (val === 0.5) state2 = 'partial';
+
+        bodyHtml += `<td class="data-cell ${isToday?'today-col':''}"
+          onclick="toggleCheck('${key}','${task.id}')">
+          <div class="cell-check">
+            <div class="check-circle ${state2}"></div>
+          </div>
+        </td>`;
+      } else {
+        const numVal = (val !== undefined && val !== null && val !== '') ? val : '';
+        bodyHtml += `<td class="data-cell ${isToday?'today-col':''}">
+          <div class="cell-num">
+            <input type="text" placeholder="—"
+              value="${numVal}"
+              data-key="${key}" data-tid="${task.id}"
+              onchange="setCellValue('${key}','${task.id}',this.value)"
+              onclick="event.stopPropagation()">
+          </div>
+        </td>`;
+      }
+    }
+    bodyHtml += '</tr>';
+  });
+
+  body.innerHTML = bodyHtml;
+}
+
+function toggleCheck(key, taskId) {
+  if (!state.records[key]) state.records[key] = {};
+  const cur = state.records[key][taskId];
+  // cycle: undefined → 1 (done) → 0.5 (partial) → undefined
+  if (!cur) state.records[key][taskId] = 1;
+  else if (cur === 1) state.records[key][taskId] = 0.5;
+  else delete state.records[key][taskId];
+  saveState();
+  renderTable();
+  updateStats();
+}
+
+function setCellValue(key, field, val) {
+  if (!state.records[key]) state.records[key] = {};
+  if (val === '' || val === null) {
+    delete state.records[key][field];
+  } else {
+    state.records[key][field] = parseFloat(val) || val;
+  }
+  saveState();
+  updateWeightChart();
+  updateStats();
+}
+
+// =============================================
+//  WEIGHT CHART
+// =============================================
+let chartInstance = null;
+
+function getWeightData() {
+  const y = state.viewYear;
+  const m = state.viewMonth;
+  const days = daysInMonth(y, m);
+  const labels = [];
+  const data = [];
+  for (let d = 1; d <= days; d++) {
+    const key = dateKey(y, m, d);
+    labels.push(`${d}日`);
+    const rec = state.records[key];
+    data.push((rec && rec.weight != null) ? rec.weight : null);
+  }
+  return { labels, data };
+}
+
+function updateWeightChart() {
+  const { labels, data } = getWeightData();
+  const filled = data.filter(v => v !== null);
+
+  if (chartInstance) {
+    chartInstance.data.labels = labels;
+    chartInstance.data.datasets[0].data = data;
+    chartInstance.update();
+  } else {
+    const ctx = document.getElementById('weightChart').getContext('2d');
+    chartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: '体重 (kg)',
+          data,
+          borderColor: '#2d6a4f',
+          backgroundColor: 'rgba(116,198,157,0.18)',
+          pointBackgroundColor: '#2d6a4f',
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          borderWidth: 2.5,
+          tension: 0.35,
+          spanGaps: true,
+          fill: true,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` ${ctx.parsed.y} kg`
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: 'rgba(0,0,0,0.04)' },
+            ticks: { font: { family: 'DM Mono', size: 10 }, maxTicksLimit: 8 }
+          },
+          y: {
+            grid: { color: 'rgba(0,0,0,0.04)' },
+            ticks: {
+              font: { family: 'DM Mono', size: 11 },
+              callback: v => v + 'kg'
+            },
+            suggestedMin: filled.length ? Math.min(...filled) - 1 : 50,
+            suggestedMax: filled.length ? Math.max(...filled) + 1 : 80,
+          }
+        }
+      }
+    });
+  }
+}
+
+function updateStats() {
+  const { data } = getWeightData();
+  const filled = data.filter(v => v !== null);
+  if (!filled.length) {
+    document.getElementById('statCurrent').textContent = '—';
+    document.getElementById('statChange').textContent = '—';
+    document.getElementById('statMin').textContent = '—';
+    document.getElementById('statMax').textContent = '—';
+    return;
+  }
+  const cur = filled[filled.length - 1];
+  const first = filled[0];
+  const diff = (cur - first).toFixed(1);
+  const diffStr = (diff > 0 ? '+' : '') + diff + 'kg';
+
+  document.getElementById('statCurrent').textContent = cur + 'kg';
+  document.getElementById('statChange').style.color = diff < 0 ? 'var(--accent)' : '#e76f51';
+  document.getElementById('statChange').textContent = diffStr;
+  document.getElementById('statMin').textContent = Math.min(...filled) + 'kg';
+  document.getElementById('statMax').textContent = Math.max(...filled) + 'kg';
+}
+
+// =============================================
+//  TODAY WEIGHT SHORTCUT
+// =============================================
+function saveTodayWeight() {
+  const val = document.getElementById('todayWeight').value;
+  if (!val) return;
+  const key = todayKey();
+  setCellValue(key, 'weight', parseFloat(val));
+  document.getElementById('todayWeight').value = '';
+  renderTable();
+  showToast('✓ 体重を記録しました！');
+}
+
+// =============================================
+//  MODAL
+// =============================================
+function openModal() {
+  const now = new Date();
+  const days = ['日','月','火','水','木','金','土'];
+  document.getElementById('modalDate').textContent =
+    `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日（${days[now.getDay()]}）`;
+
+  // Pre-fill with today's existing value or yesterday's value
+  const key = todayKey();
+  const rec = state.records[key];
+  if (rec && rec.weight) {
+    document.getElementById('bigWeightInput').value = rec.weight;
+  } else {
+    // try yesterday
+    const yest = new Date(now); yest.setDate(yest.getDate()-1);
+    const ykey = dateKey(yest.getFullYear(), yest.getMonth(), yest.getDate());
+    const yrec = state.records[ykey];
+    if (yrec && yrec.weight) {
+      document.getElementById('bigWeightInput').value = yrec.weight;
+    } else {
+      document.getElementById('bigWeightInput').value = '';
+    }
+  }
+  onWeightInput();
+  document.getElementById('modalOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('bigWeightInput').focus(), 200);
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+
+function closeModalOnBg(e) {
+  if (e.target === document.getElementById('modalOverlay')) closeModal();
+}
+
+function adjustWeight(delta) {
+  const input = document.getElementById('bigWeightInput');
+  const cur = parseFloat(input.value) || 60;
+  input.value = Math.max(30, Math.min(200, Math.round((cur + delta) * 10) / 10));
+  onWeightInput();
+}
+
+function onWeightInput() {}
+
+function saveModalWeight() {
+  const val = parseFloat(document.getElementById('bigWeightInput').value);
+  if (isNaN(val)) return;
+  const key = todayKey();
+  setCellValue(key, 'weight', val);
+  renderTable();
+  closeModal();
+  showToast('✓ ' + val + 'kg を記録しました！');
+}
+
+// =============================================
+//  TOAST
+// =============================================
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// =============================================
+//  MONTH NAV
+// =============================================
+function changeMonth(delta) {
+  state.viewMonth += delta;
+  if (state.viewMonth > 11) { state.viewMonth = 0; state.viewYear++; }
+  if (state.viewMonth < 0)  { state.viewMonth = 11; state.viewYear--; }
+  updateMonthLabel();
+  renderTable();
+  if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+  updateWeightChart();
+  updateStats();
+}
+
+function updateMonthLabel() {
+  const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  document.getElementById('monthLabel').textContent =
+    `${state.viewYear}年 ${months[state.viewMonth]}`;
+}
+
+// =============================================
+//  INIT
+// =============================================
+function init() {
+  loadState();
+  const now = new Date();
+  state.viewYear  = now.getFullYear();
+  state.viewMonth = now.getMonth();
+
+  const days = ['日','月','火','水','木','金','土'];
+  document.getElementById('todayLabel').textContent =
+    `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} (${days[now.getDay()]})`;
+
+  updateMonthLabel();
+  renderTaskManager();
+  renderTable();
+  updateWeightChart();
+  updateStats();
+
+
+}
+
+init();
+</script>
+
+</body>
+</html>
