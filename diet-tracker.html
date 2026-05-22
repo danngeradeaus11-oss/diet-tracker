@@ -103,6 +103,7 @@ canvas#weightChart { width: 100% !important; height: 180px !important; }
 
 /* STATS */
 .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.stat-box-wide { grid-column: 1 / -1; }
 .stat-box { background: var(--bg); border-radius: 10px; padding: 10px; text-align: center; }
 .stat-val { font-family: 'DM Mono', monospace; font-size: 1.3rem; color: var(--green); }
 .stat-label { font-size: 0.68rem; color: var(--muted); margin-top: 2px; }
@@ -381,6 +382,9 @@ details[open] .arrow { transform: rotate(180deg); }
           <div class="stat-box"><div class="stat-val" id="sChange">—</div><div class="stat-label">今月の変化</div></div>
           <div class="stat-box"><div class="stat-val" id="sMin">—</div><div class="stat-label">最小値</div></div>
           <div class="stat-box"><div class="stat-val" id="sMax">—</div><div class="stat-label">最大値</div></div>
+          <div class="stat-box"><div class="stat-val" id="sWeekAvg">—</div><div class="stat-label">今週平均</div></div>
+          <div class="stat-box"><div class="stat-val" id="sLastWeek">—</div><div class="stat-label">先週比</div></div>
+          <div class="stat-box stat-box-wide"><div class="stat-val" id="sStreak">—</div><div class="stat-label">連続記録日数</div></div>
         </div>
       </div>
     </div>
@@ -621,27 +625,74 @@ function rebuildChart() {
   const filled = data.filter(v => v !== null);
   const yMin = filled.length ? parseFloat((Math.min(...filled) - 0.5).toFixed(1)) : 50;
   const yMax = filled.length ? parseFloat((Math.max(...filled) + 0.5).toFixed(1)) : 80;
+  const ma7 = data.map((_, i) => {
+    const window = data.slice(Math.max(0,i-6), i+1).filter(v => v!==null);
+    return window.length >= 3 ? parseFloat((window.reduce((a,b)=>a+b,0)/window.length).toFixed(2)) : null;
+  });
+  // Weekend band plugin - reads from state directly to avoid stale closure
+  const weekendPlugin = {
+    id: 'weekendBands',
+    beforeDraw(ch) {
+      try {
+        const { ctx, chartArea, scales } = ch;
+        if (!chartArea || !scales.x) return;
+        const lbs = ch.data.labels;
+        if (!lbs || !lbs.length) return;
+        const cy = state.year, cm = state.month;
+        const barW = lbs.length > 1
+          ? Math.abs(scales.x.getPixelForValue(1) - scales.x.getPixelForValue(0))
+          : 20;
+        ctx.save();
+        for (let i = 0; i < lbs.length; i++) {
+          const d = parseInt(lbs[i]);
+          const w = getDow(cy, cm, d);
+          if (w !== 0 && w !== 6) continue;
+          const xCenter = scales.x.getPixelForValue(i);
+          ctx.fillStyle = w === 0 ? 'rgba(229,115,115,0.13)' : 'rgba(91,141,217,0.13)';
+          ctx.fillRect(xCenter - barW / 2, chartArea.top, barW, chartArea.height);
+        }
+        ctx.restore();
+      } catch(e) { /* silent */ }
+    }
+  };
+
   chart = new Chart(document.getElementById('weightChart').getContext('2d'), {
     type: 'line',
+    plugins: [weekendPlugin],
     data: {
       labels,
-      datasets: [{
-        data,
-        borderColor: '#2d6a4f',
-        backgroundColor: 'rgba(116,198,157,0.15)',
-        pointBackgroundColor: '#2d6a4f',
-        pointRadius: 3,
-        borderWidth: 2,
-        tension: 0.35,
-        spanGaps: true,
-        fill: true,
-      }]
+      datasets: [
+        {
+          label: '体重',
+          data,
+          borderColor: '#2d6a4f',
+          backgroundColor: 'rgba(116,198,157,0.15)',
+          pointBackgroundColor: '#2d6a4f',
+          pointRadius: 3,
+          borderWidth: 2,
+          tension: 0.35,
+          spanGaps: true,
+          fill: true,
+        },
+        {
+          label: '7日平均',
+          data: ma7,
+          borderColor: '#e76f51',
+          backgroundColor: 'transparent',
+          pointRadius: 0,
+          borderWidth: 2,
+          borderDash: [5,3],
+          tension: 0.35,
+          spanGaps: true,
+          fill: false,
+        }
+      ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { display: false },
+        legend: { display: true, labels: { font: { family: 'DM Mono', size: 10 }, boxWidth: 16, padding: 8 } },
         tooltip: { callbacks: { label: c => ` ${c.parsed.y}kg` } }
       },
       scales: {
@@ -664,7 +715,12 @@ function updateChart() {
   if (!chart) return rebuildChart();
   const { data } = getWeightSeries();
   const filled = data.filter(v => v !== null);
+  const ma7 = data.map((_, i) => {
+    const window = data.slice(Math.max(0,i-6), i+1).filter(v => v!==null);
+    return window.length >= 3 ? parseFloat((window.reduce((a,b)=>a+b,0)/window.length).toFixed(2)) : null;
+  });
   chart.data.datasets[0].data = data;
+  chart.data.datasets[1].data = ma7;
   if (filled.length) {
     chart.options.scales.y.min = parseFloat((Math.min(...filled) - 0.5).toFixed(1));
     chart.options.scales.y.max = parseFloat((Math.max(...filled) + 0.5).toFixed(1));
@@ -676,8 +732,9 @@ function updateChart() {
 function updateStats() {
   const { data } = getWeightSeries();
   const filled = data.filter(v => v !== null);
+  const allIds = ['sCurrent','sChange','sMin','sMax','sWeekAvg','sLastWeek','sStreak'];
   if (!filled.length) {
-    ['sCurrent','sChange','sMin','sMax'].forEach(id => document.getElementById(id).textContent = '—');
+    allIds.forEach(id => { document.getElementById(id).textContent = '—'; document.getElementById(id).style.color = ''; });
     return;
   }
   const cur = filled[filled.length-1];
@@ -687,6 +744,56 @@ function updateStats() {
   document.getElementById('sChange').style.color = diff < 0 ? 'var(--green)' : '#e76f51';
   document.getElementById('sMin').textContent = Math.min(...filled) + 'kg';
   document.getElementById('sMax').textContent = Math.max(...filled) + 'kg';
+
+  // 今週平均（月曜起点の今週）
+  const now = new Date();
+  const todayDow = now.getDay(); // 0=日
+  const mondayOffset = todayDow === 0 ? 6 : todayDow - 1;
+  const weekWeights = [];
+  for (let i = mondayOffset; i >= 0; i--) {
+    const d = new Date(now); d.setDate(d.getDate() - i);
+    const k = dkey(d.getFullYear(), d.getMonth(), d.getDate());
+    const rec = state.records[k];
+    if (rec?.weight) weekWeights.push(rec.weight);
+  }
+  if (weekWeights.length) {
+    const avg = (weekWeights.reduce((a,b)=>a+b,0)/weekWeights.length).toFixed(1);
+    document.getElementById('sWeekAvg').textContent = avg + 'kg';
+  } else {
+    document.getElementById('sWeekAvg').textContent = '—';
+  }
+
+  // 先週比（今週平均 vs 先週平均）
+  const lastWeekWeights = [];
+  for (let i = mondayOffset+7; i >= mondayOffset+1; i--) {
+    const d = new Date(now); d.setDate(d.getDate() - i);
+    const k = dkey(d.getFullYear(), d.getMonth(), d.getDate());
+    const rec = state.records[k];
+    if (rec?.weight) lastWeekWeights.push(rec.weight);
+  }
+  if (weekWeights.length && lastWeekWeights.length) {
+    const thisAvg = weekWeights.reduce((a,b)=>a+b,0)/weekWeights.length;
+    const lastAvg = lastWeekWeights.reduce((a,b)=>a+b,0)/lastWeekWeights.length;
+    const d2 = (thisAvg - lastAvg).toFixed(1);
+    document.getElementById('sLastWeek').textContent = (d2>0?'+':'') + d2 + 'kg';
+    document.getElementById('sLastWeek').style.color = d2 < 0 ? 'var(--green)' : '#e76f51';
+  } else {
+    document.getElementById('sLastWeek').textContent = '—';
+    document.getElementById('sLastWeek').style.color = '';
+  }
+
+  // 連続記録日数（今日から遡る）
+  let streak = 0;
+  const check = new Date(now);
+  while (true) {
+    const k = dkey(check.getFullYear(), check.getMonth(), check.getDate());
+    if (state.records[k]?.weight) {
+      streak++;
+      check.setDate(check.getDate() - 1);
+    } else break;
+  }
+  document.getElementById('sStreak').textContent = streak > 0 ? streak + '日連続 🔥' : '0日';
+  document.getElementById('sStreak').style.color = streak >= 7 ? '#e76f51' : streak >= 3 ? 'var(--green)' : '';
 }
 
 // ── 体重記録 ──
