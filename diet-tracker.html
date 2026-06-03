@@ -282,17 +282,6 @@ details[open] .arrow { transform: rotate(180deg); }
 }
 .btn-add:active { border-color: var(--green-light); color: var(--green); }
 
-/* FAB */
-.fab {
-  position: fixed; bottom: 24px; right: 20px;
-  width: 58px; height: 58px; border-radius: 50%;
-  background: var(--green); color: #fff; border: none;
-  font-size: 1.5rem; cursor: pointer;
-  box-shadow: 0 4px 18px rgba(45,106,79,0.45);
-  z-index: 150; display: flex; align-items: center; justify-content: center;
-}
-.fab:active { transform: scale(0.95); }
-
 /* MODAL */
 .modal-overlay {
   display: none; position: fixed; inset: 0;
@@ -422,9 +411,6 @@ details[open] .arrow { transform: rotate(180deg); }
     </details>
   </div>
 </div>
-
-<!-- FAB -->
-<button class="fab" onclick="openModal()">⚖</button>
 
 <!-- モーダル -->
 <div class="modal-overlay" id="modalOverlay" onclick="bgClose(event)">
@@ -602,26 +588,49 @@ function changeMonth(delta) {
   renderTable();
   rebuildChart();
   updateStats();
+  scrollToToday();
 }
 
 // ── グラフ ──
 let chart = null;
 
 function getWeightSeries() {
-  const y = state.year, m = state.month;
-  const days = daysIn(y, m);
-  const labels = [], data = [];
-  for (let d = 1; d <= days; d++) {
-    labels.push(String(d));
-    const rec = state.records[dkey(y, m, d)];
+  // Find the latest date with a weight record
+  const today = new Date();
+  let endDate = new Date(today);
+
+  // Search up to 365 days back for the most recent record
+  let latestDate = null;
+  for (let i = 0; i <= 365; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const k = dkey(d.getFullYear(), d.getMonth(), d.getDate());
+    if (state.records[k]?.weight) {
+      latestDate = d;
+      break;
+    }
+  }
+  // If no record found, use today; otherwise use the latest record date
+  endDate = latestDate || today;
+
+  // Show 30 days ending at endDate
+  const labels = [], data = [], rawDates = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(endDate);
+    d.setDate(d.getDate() - i);
+    const key = dkey(d.getFullYear(), d.getMonth(), d.getDate());
+    const label = `${d.getMonth()+1}/${d.getDate()}`;
+    labels.push(label);
+    rawDates.push({ y: d.getFullYear(), m: d.getMonth(), d: d.getDate() });
+    const rec = state.records[key];
     data.push(rec?.weight ?? null);
   }
-  return { labels, data };
+  return { labels, data, rawDates };
 }
 
 function rebuildChart() {
   if (chart) { chart.destroy(); chart = null; }
-  const { labels, data } = getWeightSeries();
+  const { labels, data, rawDates } = getWeightSeries();
   const filled = data.filter(v => v !== null);
   const yMin = filled.length ? parseFloat((Math.min(...filled) - 0.5).toFixed(1)) : 50;
   const yMax = filled.length ? parseFloat((Math.max(...filled) + 0.5).toFixed(1)) : 80;
@@ -629,23 +638,21 @@ function rebuildChart() {
     const window = data.slice(Math.max(0,i-6), i+1).filter(v => v!==null);
     return window.length >= 3 ? parseFloat((window.reduce((a,b)=>a+b,0)/window.length).toFixed(2)) : null;
   });
-  // Weekend band plugin - reads from state directly to avoid stale closure
+  // Weekend band plugin - uses rawDates attached to chart instance
   const weekendPlugin = {
     id: 'weekendBands',
     beforeDraw(ch) {
       try {
         const { ctx, chartArea, scales } = ch;
         if (!chartArea || !scales.x) return;
-        const lbs = ch.data.labels;
-        if (!lbs || !lbs.length) return;
-        const cy = state.year, cm = state.month;
-        const barW = lbs.length > 1
+        const dates = ch._rawDates;
+        if (!dates || !dates.length) return;
+        const barW = dates.length > 1
           ? Math.abs(scales.x.getPixelForValue(1) - scales.x.getPixelForValue(0))
           : 20;
         ctx.save();
-        for (let i = 0; i < lbs.length; i++) {
-          const d = parseInt(lbs[i]);
-          const w = getDow(cy, cm, d);
+        for (let i = 0; i < dates.length; i++) {
+          const w = getDow(dates[i].y, dates[i].m, dates[i].d);
           if (w !== 0 && w !== 6) continue;
           const xCenter = scales.x.getPixelForValue(i);
           ctx.fillStyle = w === 0 ? 'rgba(229,115,115,0.13)' : 'rgba(91,141,217,0.13)';
@@ -698,7 +705,14 @@ function rebuildChart() {
       scales: {
         x: {
           grid: { color: 'rgba(0,0,0,0.04)' },
-          ticks: { font: { family: 'DM Mono', size: 9 }, maxTicksLimit: 10 }
+          ticks: {
+            font: { family: 'DM Mono', size: 9 },
+            maxTicksLimit: 9,
+            callback: function(val, i) {
+              // show every 7th label
+              return i % 7 === 0 ? this.getLabelForValue(val) : '';
+            }
+          }
         },
         y: {
           grid: { color: 'rgba(0,0,0,0.04)' },
@@ -709,18 +723,20 @@ function rebuildChart() {
       }
     }
   });
+  chart._rawDates = rawDates;
 }
 
 function updateChart() {
   if (!chart) return rebuildChart();
-  const { data } = getWeightSeries();
+  const { data, rawDates } = getWeightSeries();
   const filled = data.filter(v => v !== null);
   const ma7 = data.map((_, i) => {
-    const window = data.slice(Math.max(0,i-6), i+1).filter(v => v!==null);
-    return window.length >= 3 ? parseFloat((window.reduce((a,b)=>a+b,0)/window.length).toFixed(2)) : null;
+    const w = data.slice(Math.max(0,i-6), i+1).filter(v => v!==null);
+    return w.length >= 3 ? parseFloat((w.reduce((a,b)=>a+b,0)/w.length).toFixed(2)) : null;
   });
   chart.data.datasets[0].data = data;
   chart.data.datasets[1].data = ma7;
+  chart._rawDates = rawDates;
   if (filled.length) {
     chart.options.scales.y.min = parseFloat((Math.min(...filled) - 0.5).toFixed(1));
     chart.options.scales.y.max = parseFloat((Math.max(...filled) + 0.5).toFixed(1));
@@ -865,6 +881,22 @@ function addTask() {
   save(); renderTaskEditor(); renderTable();
 }
 
+// ── 今日へスクロール ──
+function scrollToToday() {
+  // find today's th in the header and scroll the table-wrap to show it
+  const wrap = document.querySelector('.table-wrap');
+  if (!wrap) return;
+  const tk = todayKey();
+  // Today's column index = day of month - 1 (0-indexed), offset by label col
+  const now = new Date();
+  if (now.getFullYear() !== state.year || now.getMonth() !== state.month) return;
+  const labelW = 140;
+  const cellW = 54;
+  const todayCol = now.getDate() - 1; // 0-indexed
+  const scrollTo = labelW + cellW * todayCol - wrap.clientWidth / 2 + cellW / 2;
+  wrap.scrollLeft = Math.max(0, scrollTo);
+}
+
 // ── 初期化 ──
 function init() {
   load();
@@ -876,6 +908,7 @@ function init() {
   renderTaskEditor();
   rebuildChart();
   updateStats();
+  scrollToToday();
 }
 
 document.addEventListener('DOMContentLoaded', init);
